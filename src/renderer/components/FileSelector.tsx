@@ -1,5 +1,5 @@
 import { useState, useCallback } from 'react';
-import type { VideoFile } from '../../shared/types';
+import type { MediaFile } from '../../shared/types';
 import { PixelFileVideo, PixelCheck, PixelUpload } from './Icons';
 
 function formatSize(bytes: number): string {
@@ -9,7 +9,7 @@ function formatSize(bytes: number): string {
 }
 
 interface Props {
-  videoFile: VideoFile | null;
+  videoFile: MediaFile | null;
   onSelect: () => void;
 }
 

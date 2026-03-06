@@ -9,12 +9,79 @@ import { FuseV1Options, FuseVersion } from '@electron/fuses';
 
 const config: ForgeConfig = {
   packagerConfig: {
+    appBundleId: 'com.retrocast.app',
     icon: './build/icon',
     asar: true,
     extraResource: [
       './node_modules/ffmpeg-static/ffmpeg',
       './node_modules/ffprobe-static/bin',
     ],
+    extendInfo: {
+      CFBundleDocumentTypes: [
+        {
+          CFBundleTypeName: 'Video File',
+          CFBundleTypeRole: 'Viewer',
+          CFBundleTypeIconFile: 'electron',
+          CFBundleTypeExtensions: ['mp4', 'mkv', 'webm', 'avi', 'mov'],
+          LSItemContentTypes: [
+            'public.movie',
+            'public.video',
+            'com.apple.quicktime-movie',
+            'public.mpeg-4',
+            'org.matroska.mkv',
+            'org.webmproject.webm',
+            'public.avi',
+          ],
+          LSHandlerRank: 'Owner',
+        },
+        {
+          CFBundleTypeName: 'Audio File',
+          CFBundleTypeRole: 'Viewer',
+          CFBundleTypeIconFile: 'electron',
+          CFBundleTypeExtensions: ['mp3', 'wav', 'flac', 'm4a', 'aac', 'ogg'],
+          LSItemContentTypes: [
+            'public.audio',
+            'public.mp3',
+            'com.apple.m4a-audio',
+            'org.xiph.flac',
+            'public.aac-audio',
+            'org.xiph.ogg-vorbis',
+            'com.microsoft.waveform-audio',
+          ],
+          LSHandlerRank: 'Owner',
+        },
+      ],
+      UTImportedTypeDeclarations: [
+        {
+          UTTypeIdentifier: 'org.matroska.mkv',
+          UTTypeDescription: 'Matroska Video',
+          UTTypeIconFile: 'electron',
+          UTTypeConformsTo: ['public.movie'],
+          UTTypeTagSpecification: { 'public.filename-extension': ['mkv'], 'public.mime-type': ['video/x-matroska'] },
+        },
+        {
+          UTTypeIdentifier: 'org.webmproject.webm',
+          UTTypeDescription: 'WebM Video',
+          UTTypeIconFile: 'electron',
+          UTTypeConformsTo: ['public.movie'],
+          UTTypeTagSpecification: { 'public.filename-extension': ['webm'], 'public.mime-type': ['video/webm'] },
+        },
+        {
+          UTTypeIdentifier: 'org.xiph.flac',
+          UTTypeDescription: 'FLAC Audio',
+          UTTypeIconFile: 'electron',
+          UTTypeConformsTo: ['public.audio'],
+          UTTypeTagSpecification: { 'public.filename-extension': ['flac'], 'public.mime-type': ['audio/flac'] },
+        },
+        {
+          UTTypeIdentifier: 'org.xiph.ogg-vorbis',
+          UTTypeDescription: 'Ogg Vorbis Audio',
+          UTTypeIconFile: 'electron',
+          UTTypeConformsTo: ['public.audio'],
+          UTTypeTagSpecification: { 'public.filename-extension': ['ogg'], 'public.mime-type': ['audio/ogg'] },
+        },
+      ],
+    },
   },
   rebuildConfig: {},
   makers: [

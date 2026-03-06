@@ -1,6 +1,6 @@
 import type { RefObject } from 'react';
-import { Cast, ArrowLeft } from 'lucide-react';
-import type { ChromecastDevice, EmbeddedSubtitle, VideoFile, SubtitleFile, CastStatus, SubtitleOption } from '../../shared/types';
+import { Cast, ArrowLeft, Music } from 'lucide-react';
+import type { ChromecastDevice, EmbeddedSubtitle, MediaFile, SubtitleFile, CastStatus, SubtitleOption } from '../../shared/types';
 import { BouncingNowPlaying } from './BouncingNowPlaying';
 import { PlayerControls } from './PlayerControls';
 import { SubtitleSelector } from './SubtitleSelector';
@@ -8,7 +8,7 @@ import { DeviceList } from './DeviceList';
 import { RetroModal } from './RetroModal';
 
 interface CastingViewProps {
-  videoFile: VideoFile | null;
+  videoFile: MediaFile | null;
   selectedDeviceId: string | null;
   devices: ChromecastDevice[];
   embeddedSubtitles: EmbeddedSubtitle[];
@@ -16,6 +16,7 @@ interface CastingViewProps {
   subtitleOption: SubtitleOption;
   isLoading: boolean;
   disableFakePreview: boolean;
+  isAudio: boolean;
   videoRef: RefObject<HTMLVideoElement | null>;
   videoContainerRef: RefObject<HTMLDivElement | null>;
   subtitleTrackUrl: string | null;
@@ -45,6 +46,7 @@ export function CastingView({
   subtitleOption,
   isLoading,
   disableFakePreview,
+  isAudio,
   videoRef,
   videoContainerRef,
   subtitleTrackUrl,
@@ -102,21 +104,30 @@ export function CastingView({
       )}
       <div className="window-body" onDoubleClick={isLocal ? toggleFullscreen : undefined}>
         {isLocal && videoFile ? (
-          <video
-            ref={videoRef}
-            src={`file://${encodeURI(videoFile.path.replace(/\\/g, '/'))}`}
-            autoPlay
-          >
-            {subtitleTrackUrl && (
-              <track
-                key={subtitleTrackUrl}
-                src={subtitleTrackUrl}
-                kind="subtitles"
-                label="Subtitles"
-                default
-              />
+          <>
+            <video
+              ref={videoRef}
+              src={`file://${encodeURI(videoFile.path.replace(/\\/g, '/'))}`}
+              autoPlay
+              style={isAudio ? { display: 'none' } : undefined}
+            >
+              {subtitleTrackUrl && (
+                <track
+                  key={subtitleTrackUrl}
+                  src={subtitleTrackUrl}
+                  kind="subtitles"
+                  label="Subtitles"
+                  default
+                />
+              )}
+            </video>
+            {isAudio && (
+              <div className="audio-display">
+                <Music size={48} />
+                <span className="audio-display-name">{videoFile.name}</span>
+              </div>
             )}
-          </video>
+          </>
         ) : videoFile ? (
           <BouncingNowPlaying deviceName={devices.find(d => d.id === selectedDeviceId)?.name || 'Device'} />
         ) : (
@@ -134,7 +145,7 @@ export function CastingView({
               onVolumeChange={(v: number) => { if (videoRef.current) videoRef.current.volume = v; }}
               onStop={onStop}
               onFullscreen={toggleFullscreen}
-              onSubtitles={() => { setSubtitlesModalOpen(!subtitlesModalOpen); setTargetModalOpen(false); }}
+              onSubtitles={isAudio ? undefined : () => { setSubtitlesModalOpen(!subtitlesModalOpen); setTargetModalOpen(false); }}
               onTarget={() => { setTargetModalOpen(!targetModalOpen); setSubtitlesModalOpen(false); }}
               onSettings={() => {
                 if (document.fullscreenElement) document.exitFullscreen();
@@ -145,7 +156,7 @@ export function CastingView({
               isLocal
             />
           </div>
-          {subtitlesModalOpen && (
+          {subtitlesModalOpen && !isAudio && (
             <RetroModal title="Subtitles" onClose={() => setSubtitlesModalOpen(false)} className="local-options-modal">
               <SubtitleSelector
                 embeddedSubtitles={embeddedSubtitles}

@@ -3,7 +3,7 @@ import { IPC } from './shared/types';
 import type { VideoCastAPI, CastRequest, AppSettings } from './shared/types';
 
 const api: VideoCastAPI = {
-  selectVideo: () => ipcRenderer.invoke(IPC.SELECT_VIDEO),
+  selectMedia: () => ipcRenderer.invoke(IPC.SELECT_VIDEO),
   selectSubtitle: () => ipcRenderer.invoke(IPC.SELECT_SUBTITLE),
   probeSubtitles: (videoPath: string) => ipcRenderer.invoke(IPC.PROBE_SUBTITLES, videoPath),
   getDevices: () => ipcRenderer.invoke(IPC.GET_DEVICES),
@@ -23,6 +23,7 @@ const api: VideoCastAPI = {
   prepareSubtitles: (videoPath: string, subtitleOption: any) => ipcRenderer.invoke(IPC.PREPARE_SUBTITLES, videoPath, subtitleOption),
   openFolder: (defaultPath?: string) => ipcRenderer.invoke(IPC.OPEN_FOLDER, defaultPath),
   updateTextTrackStyle: (style: any) => ipcRenderer.invoke(IPC.UPDATE_TEXT_TRACK_STYLE, style),
+  setAsDefaultPlayer: () => ipcRenderer.invoke(IPC.SET_DEFAULT_PLAYER),
   onDevicesUpdated: (callback) => {
     const handler = (_event: any, devices: any) => callback(devices);
     ipcRenderer.on(IPC.DEVICES_UPDATED, handler);
@@ -37,6 +38,11 @@ const api: VideoCastAPI = {
     const handler = (_event: any, error: any) => callback(error);
     ipcRenderer.on(IPC.CAST_ERROR, handler);
     return () => ipcRenderer.removeListener(IPC.CAST_ERROR, handler);
+  },
+  onOpenFile: (callback) => {
+    const handler = (_event: any, filePath: string) => callback(filePath);
+    ipcRenderer.on(IPC.OPEN_FILE, handler);
+    return () => ipcRenderer.removeListener(IPC.OPEN_FILE, handler);
   },
 };
 

@@ -9,6 +9,12 @@ const MIME_TYPES: Record<string, string> = {
   '.webm': 'video/webm',
   '.avi': 'video/x-msvideo',
   '.mov': 'video/quicktime',
+  '.mp3': 'audio/mpeg',
+  '.wav': 'audio/wav',
+  '.flac': 'audio/flac',
+  '.m4a': 'audio/mp4',
+  '.aac': 'audio/aac',
+  '.ogg': 'audio/ogg',
 };
 
 export class MediaServer {
@@ -49,7 +55,7 @@ export class MediaServer {
       const stat = fs.statSync(this.videoPath);
       const fileSize = stat.size;
       const ext = path.extname(this.videoPath).toLowerCase();
-      const contentType = MIME_TYPES[ext] || 'video/mp4';
+      const contentType = MIME_TYPES[ext] || 'application/octet-stream';
 
       const range = req.headers.range;
       if (range) {

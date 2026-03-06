@@ -1,7 +1,7 @@
-import type { ChromecastDevice, EmbeddedSubtitle, VideoFile, SubtitleFile, CastStatus, SubtitleOption } from '../shared/types';
+import type { ChromecastDevice, EmbeddedSubtitle, MediaFile, SubtitleFile, CastStatus, SubtitleOption } from '../shared/types';
 
 export interface AppState {
-  videoFile: VideoFile | null;
+  videoFile: MediaFile | null;
   embeddedSubtitles: EmbeddedSubtitle[];
   externalSubtitle: SubtitleFile | null;
   subtitleOption: SubtitleOption;
@@ -15,7 +15,7 @@ export interface AppState {
 }
 
 export type Action =
-  | { type: 'SET_VIDEO'; payload: VideoFile | null }
+  | { type: 'SET_VIDEO'; payload: MediaFile | null }
   | { type: 'SET_EMBEDDED_SUBS'; payload: EmbeddedSubtitle[] }
   | { type: 'SET_EXTERNAL_SUB'; payload: SubtitleFile | null }
   | { type: 'SET_SUBTITLE_OPTION'; payload: SubtitleOption }

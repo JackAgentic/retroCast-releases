@@ -24,6 +24,8 @@ export const IPC = {
   PREPARE_SUBTITLES: 'prepare-subtitles',
   OPEN_FOLDER: 'open-folder',
   UPDATE_TEXT_TRACK_STYLE: 'update-text-track-style',
+  OPEN_FILE: 'open-file',
+  SET_DEFAULT_PLAYER: 'set-default-player',
 } as const;
 
 export interface ChromecastDevice {
@@ -40,7 +42,7 @@ export interface EmbeddedSubtitle {
   codec: string;
 }
 
-export interface VideoFile {
+export interface MediaFile {
   path: string;
   name: string;
   size: number;
@@ -127,7 +129,7 @@ export interface DirectoryContents {
 }
 
 export interface VideoCastAPI {
-  selectVideo: () => Promise<VideoFile | null>;
+  selectMedia: () => Promise<MediaFile | null>;
   selectSubtitle: () => Promise<SubtitleFile | null>;
   probeSubtitles: (videoPath: string) => Promise<EmbeddedSubtitle[]>;
   getDevices: () => Promise<ChromecastDevice[]>;
@@ -142,11 +144,13 @@ export interface VideoCastAPI {
   saveSettings: (settings: AppSettings) => Promise<void>;
   getNetworkInterfaces: () => Promise<NetworkInterface[]>;
   readDirectory: (dirPath: string) => Promise<DirectoryContents>;
-  selectFileDirect: (filePath: string) => Promise<VideoFile>;
+  selectFileDirect: (filePath: string) => Promise<MediaFile>;
+  onOpenFile: (callback: (filePath: string) => void) => () => void;
   getHomePath: () => Promise<string>;
   prepareSubtitles: (videoPath: string, subtitleOption: SubtitleOption) => Promise<string | null>;
   openFolder: (defaultPath?: string) => Promise<string | null>;
   updateTextTrackStyle: (style: { foregroundColor?: string; backgroundColor?: string; fontScale?: number; fontFamily?: string }) => Promise<void>;
+  setAsDefaultPlayer: () => Promise<{ success: boolean; error?: string }>;
   onDevicesUpdated: (callback: (devices: ChromecastDevice[]) => void) => () => void;
   onCastStatus: (callback: (status: CastStatus) => void) => () => void;
   onCastError: (callback: (error: string) => void) => () => void;

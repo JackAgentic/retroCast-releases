@@ -17,6 +17,10 @@ import { useLocalPlayback } from './hooks/useLocalPlayback';
 import { useKeyboardShortcuts } from './hooks/useKeyboardShortcuts';
 
 const api = (window as any).videoCast;
+const AUDIO_EXTS = new Set(['.mp3', '.wav', '.flac', '.m4a', '.aac', '.ogg']);
+function isAudioFile(name: string): boolean {
+  return AUDIO_EXTS.has(name.substring(name.lastIndexOf('.')).toLowerCase());
+}
 
 // Dismiss the boot screen from index.html (minimum 2.5s visible)
 const bootShownAt = Date.now();
@@ -139,7 +143,7 @@ function AppInner() {
   const handleFileSelect = useCallback(async (filePath: string) => {
     const file = await api.selectFileDirect(filePath);
     dispatch({ type: 'SET_VIDEO', payload: file });
-    if (file) {
+    if (file && !isAudioFile(file.name)) {
       dispatch({ type: 'SET_LOADING', payload: true });
       try {
         const subs = await api.probeSubtitles(file.path);
@@ -149,6 +153,50 @@ function AppInner() {
       }
     }
   }, []);
+
+  // Listen for files opened via macOS "Open With" / Finder — auto-play locally
+  const handleFileSelectRef = useRef(handleFileSelect);
+  handleFileSelectRef.current = handleFileSelect;
+  const pendingAutoPlayPath = useRef<string | null>(null);
+
+  useEffect(() => {
+    return api.onOpenFile((filePath: string) => {
+      pendingAutoPlayPath.current = filePath;
+      handleFileSelectRef.current(filePath);
+    });
+  }, []);
+
+  // Auto-start local playback when file arrives from external open
+  useEffect(() => {
+    if (!pendingAutoPlayPath.current || !state.videoFile) return;
+    if (state.videoFile.path !== pendingAutoPlayPath.current) return;
+    pendingAutoPlayPath.current = null;
+
+    // Stop any current playback
+    if (state.isCasting) {
+      if (state.selectedDeviceId !== 'local') {
+        api.stop().catch(() => { /* ignore */ });
+      }
+      dispatch({ type: 'SET_CASTING', payload: false });
+      dispatch({ type: 'SET_CAST_STATUS', payload: null });
+      setSubtitleTrackUrl(null);
+    }
+
+    // Select local device and start playback
+    if (state.selectedDeviceId !== 'local') {
+      dispatch({ type: 'SET_SELECTED_DEVICE', payload: 'local' });
+    }
+    (async () => {
+      dispatch({ type: 'SET_LOADING', payload: true });
+      try {
+        const url = await api.prepareSubtitles(state.videoFile!.path, { type: 'none' });
+        setSubtitleTrackUrl(url);
+        dispatch({ type: 'SET_CASTING', payload: true });
+      } finally {
+        dispatch({ type: 'SET_LOADING', payload: false });
+      }
+    })();
+  }, [state.videoFile]);
 
   const handleExternalSubSelect = useCallback(async () => {
     const file = await api.selectSubtitle();
@@ -279,6 +327,7 @@ function AppInner() {
     }).catch(() => { /* ignore if not connected */ });
   }, [settings.subtitleTextSize, settings.subtitleTextColor, settings.subtitleBackground, settings.subtitleFont, state.isCasting, state.selectedDeviceId]);
 
+  const fileIsAudio = state.videoFile ? isAudioFile(state.videoFile.name) : false;
   const canCast = !!state.videoFile && !!state.selectedDeviceId && !state.isCasting && !state.isLoading;
 
   return (
@@ -287,8 +336,8 @@ function AppInner() {
         <div className="drop-overlay">
           <div className="drop-zone">
             <Film size={48} />
-            <span>Drop video file here</span>
-            <span className="drop-zone-formats">.mp4 .mkv .webm .avi .mov</span>
+            <span>Drop media file here</span>
+            <span className="drop-zone-formats">.mp4 .mkv .webm .avi .mov .mp3 .wav .flac .m4a</span>
           </div>
         </div>
       )}
@@ -374,14 +423,16 @@ function AppInner() {
                 selectedId={state.selectedDeviceId}
                 onSelect={(id) => dispatch({ type: 'SET_SELECTED_DEVICE', payload: id })}
               />
-              <SubtitleSelector
-                embeddedSubtitles={state.embeddedSubtitles}
-                externalSubtitle={state.externalSubtitle}
-                subtitleOption={state.subtitleOption}
-                onOptionChange={(opt) => dispatch({ type: 'SET_SUBTITLE_OPTION', payload: opt })}
-                onExternalSelect={handleExternalSubSelect}
-                disabled={!state.videoFile}
-              />
+              {!fileIsAudio && (
+                <SubtitleSelector
+                  embeddedSubtitles={state.embeddedSubtitles}
+                  externalSubtitle={state.externalSubtitle}
+                  subtitleOption={state.subtitleOption}
+                  onOptionChange={(opt) => dispatch({ type: 'SET_SUBTITLE_OPTION', payload: opt })}
+                  onExternalSelect={handleExternalSubSelect}
+                  disabled={!state.videoFile}
+                />
+              )}
             </div>
           ) : (
             <CastingView
@@ -393,6 +444,7 @@ function AppInner() {
               subtitleOption={state.subtitleOption}
               isLoading={state.isLoading}
               disableFakePreview={settings.disableFakePreview}
+              isAudio={fileIsAudio}
               videoRef={videoRef}
               videoContainerRef={videoContainerRef}
               subtitleTrackUrl={subtitleTrackUrl}

@@ -100,10 +100,14 @@ export function SettingsPanel({ isOpen, onClose, devices }: Props) {
   const { settings, updateSettings } = useSettings();
   const [draft, setDraft] = useState<AppSettings>(settings);
   const [networkInterfaces, setNetworkInterfaces] = useState<NetworkInterface[]>([]);
+  const [defaultPlayerStatus, setDefaultPlayerStatus] = useState<'idle' | 'setting' | 'success' | 'error'>('idle');
+  const [defaultPlayerError, setDefaultPlayerError] = useState('');
 
   useEffect(() => {
     if (isOpen) {
       setDraft(settings);
+      setDefaultPlayerStatus('idle');
+      setDefaultPlayerError('');
       api.getNetworkInterfaces().then((ifaces: NetworkInterface[]) => setNetworkInterfaces(ifaces));
     }
   }, [isOpen, settings]);
@@ -305,6 +309,44 @@ export function SettingsPanel({ isOpen, onClose, devices }: Props) {
             </div>
 
             <div className="restart-notice">* Port and adapter changes take effect on restart</div>
+
+            <div className="settings-row" style={{ marginTop: '12px' }}>
+              <label>Default Player</label>
+              <button
+                className="ctrl-btn"
+                disabled={defaultPlayerStatus === 'setting'}
+                onClick={async () => {
+                  setDefaultPlayerStatus('setting');
+                  setDefaultPlayerError('');
+                  try {
+                    const result = await api.setAsDefaultPlayer();
+                    if (result.success) {
+                      setDefaultPlayerStatus('success');
+                    } else {
+                      setDefaultPlayerStatus('error');
+                      setDefaultPlayerError(result.error || 'Unknown error');
+                    }
+                  } catch (err: any) {
+                    setDefaultPlayerStatus('error');
+                    setDefaultPlayerError(err.message || 'Failed');
+                  }
+                }}
+              >
+                {defaultPlayerStatus === 'setting' ? 'SETTING...' :
+                 defaultPlayerStatus === 'success' ? 'SET AS DEFAULT' :
+                 'SET AS DEFAULT'}
+              </button>
+            </div>
+            {defaultPlayerStatus === 'success' && (
+              <div className="restart-notice" style={{ color: 'var(--retro-accent)' }}>
+                RetroCast is now your default media player
+              </div>
+            )}
+            {defaultPlayerStatus === 'error' && (
+              <div className="restart-notice" style={{ color: '#ff4444' }}>
+                Failed: {defaultPlayerError}
+              </div>
+            )}
           </div>
 
           {/* Appearance */}

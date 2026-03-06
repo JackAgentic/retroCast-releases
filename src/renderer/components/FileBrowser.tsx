@@ -1,8 +1,9 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { Folder, FolderOpen, Film, ChevronRight, ChevronDown, ChevronUp, RotateCw, X, Upload, FolderInput } from 'lucide-react';
-import type { FileEntry, DirectoryContents, VideoFile } from '../../shared/types';
+import { Folder, FolderOpen, Film, Music, ChevronRight, ChevronDown, ChevronUp, RotateCw, X, Upload, FolderInput } from 'lucide-react';
+import type { FileEntry, DirectoryContents, MediaFile } from '../../shared/types';
 
 const api = (window as any).videoCast;
+const AUDIO_EXTS = new Set(['.mp3', '.wav', '.flac', '.m4a', '.aac', '.ogg']);
 
 function formatSize(bytes: number): string {
   if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(0)} KB`;
@@ -71,7 +72,7 @@ function TreeItem({
 }
 
 interface Props {
-  selectedFile: VideoFile | null;
+  selectedFile: MediaFile | null;
   onSelect: (filePath: string) => void;
   onClear: () => void;
   initialPath?: string;
@@ -362,7 +363,7 @@ export function FileBrowser({ selectedFile, onSelect, onClear, initialPath, onPa
                 onClick={() => handleEntryClick(entry)}
               >
                 <span className="file-entry-icon">
-                  {entry.isDirectory ? <Folder size={16} /> : <Film size={16} />}
+                  {entry.isDirectory ? <Folder size={16} /> : AUDIO_EXTS.has(entry.name.substring(entry.name.lastIndexOf('.')).toLowerCase()) ? <Music size={16} /> : <Film size={16} />}
                 </span>
                 <span className="file-entry-name">{entry.name}</span>
                 {!entry.isDirectory && (
@@ -376,7 +377,7 @@ export function FileBrowser({ selectedFile, onSelect, onClear, initialPath, onPa
 
       <div className="drop-target-strip">
         <Upload size={16} />
-        <span>Drag & drop video file here</span>
+        <span>Drag & drop media file here</span>
       </div>
 
       <div className="selected-file-bar">

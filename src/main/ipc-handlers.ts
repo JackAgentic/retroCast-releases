@@ -1,4 +1,5 @@
 import { ipcMain, dialog, app, BrowserWindow } from 'electron';
+import { execSync } from 'node:child_process';
 import path from 'node:path';
 import fs from 'node:fs';
 import os from 'node:os';
@@ -43,9 +44,9 @@ export async function initializeServices() {
 export function registerIpcHandlers() {
   ipcMain.handle(IPC.SELECT_VIDEO, async () => {
     const result = await dialog.showOpenDialog({
-      title: 'Select Video File',
+      title: 'Select Media File',
       filters: [
-        { name: 'Video Files', extensions: ['mp4', 'mkv', 'webm', 'avi', 'mov'] },
+        { name: 'Media Files', extensions: ['mp4', 'mkv', 'webm', 'avi', 'mov', 'mp3', 'wav', 'flac', 'm4a', 'aac', 'ogg'] },
       ],
       properties: ['openFile'],
     });
@@ -172,6 +173,12 @@ export function registerIpcHandlers() {
       '.webm': 'video/webm',
       '.avi': 'video/x-msvideo',
       '.mov': 'video/quicktime',
+      '.mp3': 'audio/mpeg',
+      '.wav': 'audio/wav',
+      '.flac': 'audio/flac',
+      '.m4a': 'audio/mp4',
+      '.aac': 'audio/aac',
+      '.ogg': 'audio/ogg',
     };
 
     const textTrackColorMap: Record<string, string> = {
@@ -186,7 +193,7 @@ export function registerIpcHandlers() {
 
     await caster.load({
       contentUrl: `${baseUrl}/video`,
-      contentType: contentTypes[ext] || 'video/mp4',
+      contentType: contentTypes[ext] || 'application/octet-stream',
       tracks: tracks.length > 0 ? tracks : undefined,
       activeTrackIds: activeTrackIds.length > 0 ? activeTrackIds : undefined,
       textTrackStyle: {
@@ -230,7 +237,7 @@ export function registerIpcHandlers() {
     if (caster) await caster.setSubtitleTrack(trackId);
   });
 
-  const VIDEO_EXTENSIONS = new Set(['.mp4', '.mkv', '.webm', '.avi', '.mov']);
+  const MEDIA_EXTENSIONS = new Set(['.mp4', '.mkv', '.webm', '.avi', '.mov', '.mp3', '.wav', '.flac', '.m4a', '.aac', '.ogg']);
 
   ipcMain.handle(IPC.READ_DIRECTORY, async (_event, dirPath: string) => {
     const entries: { name: string; path: string; isDirectory: boolean; size: number }[] = [];
@@ -246,7 +253,7 @@ export function registerIpcHandlers() {
             entries.push({ name, path: fullPath, isDirectory: true, size: 0 });
           } else {
             const ext = path.extname(name).toLowerCase();
-            if (VIDEO_EXTENSIONS.has(ext)) {
+            if (MEDIA_EXTENSIONS.has(ext)) {
               entries.push({ name, path: fullPath, isDirectory: false, size: stat.size });
             }
           }
@@ -307,6 +314,69 @@ export function registerIpcHandlers() {
   ipcMain.handle(IPC.UPDATE_TEXT_TRACK_STYLE, async (_event, style: { foregroundColor?: string; backgroundColor?: string; fontScale?: number }) => {
     if (!caster) return;
     await caster.updateTextTrackStyle(style);
+  });
+
+  ipcMain.handle(IPC.SET_DEFAULT_PLAYER, async () => {
+    if (process.platform !== 'darwin') {
+      return { success: false, error: 'Setting default player is only supported on macOS' };
+    }
+
+    const bundleId = 'com.retrocast.app';
+    const utTypes = [
+      // Video
+      'public.movie', 'public.video', 'com.apple.quicktime-movie',
+      'public.mpeg-4', 'org.matroska.mkv', 'org.webmproject.webm', 'public.avi',
+      // Audio
+      'public.audio', 'public.mp3', 'com.apple.m4a-audio',
+      'org.xiph.flac', 'public.aac-audio', 'org.xiph.ogg-vorbis',
+      'com.microsoft.waveform-audio',
+    ];
+
+    const extensions = ['mp4', 'mkv', 'webm', 'avi', 'mov', 'mp3', 'wav', 'flac', 'm4a', 'aac', 'ogg'];
+
+    // First, force-register the app with Launch Services so macOS knows about our UTI declarations
+    try {
+      execSync('/System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister -f /Applications/RetroCast.app', {
+        encoding: 'utf-8',
+        timeout: 10000,
+      });
+    } catch { /* ignore if not installed to /Applications */ }
+
+    // Use ObjC bridge via osascript — sets defaults by both UTType and file extension
+    const script = `
+ObjC.import("CoreServices");
+ObjC.import("Foundation");
+var bid = "${bundleId}";
+var types = ${JSON.stringify(utTypes)};
+var exts = ${JSON.stringify(extensions)};
+var failed = [];
+for (var i = 0; i < types.length; i++) {
+  var s = $.LSSetDefaultRoleHandlerForContentType($(types[i]), 0x0002, $(bid));
+  if (s !== 0) failed.push(types[i]);
+}
+for (var j = 0; j < exts.length; j++) {
+  var uti = $.UTTypeCreatePreferredIdentifierForTag($.kUTTagClassFilenameExtension, $(exts[j]), null);
+  var utiStr = ObjC.castRefToObject(uti).js;
+  $.LSSetDefaultRoleHandlerForContentType($(utiStr), 0x0002, $(bid));
+}
+if (failed.length === 0) { "OK"; } else { "FAILED:" + failed.join(","); }
+`;
+
+    try {
+      const result = execSync(`/usr/bin/osascript -l JavaScript -e '${script.replace(/'/g, "'\\''")}'`, {
+        encoding: 'utf-8',
+        timeout: 10000,
+      }).trim();
+
+      if (result.startsWith('OK')) {
+        return { success: true };
+      } else {
+        return { success: false, error: `Some types could not be set: ${result}` };
+      }
+    } catch (err: any) {
+      console.error('Failed to set default player:', err);
+      return { success: false, error: err.message || 'Failed to execute system command' };
+    }
   });
 }
 

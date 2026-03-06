@@ -1,11 +1,12 @@
 import { useState, useCallback, useEffect, useRef } from 'react';
-import type { VideoFile, EmbeddedSubtitle } from '../../shared/types';
+import type { MediaFile, EmbeddedSubtitle } from '../../shared/types';
 
 const api = (window as any).videoCast;
-const VIDEO_EXTS = ['.mp4', '.mkv', '.webm', '.avi', '.mov'];
+const MEDIA_EXTS = ['.mp4', '.mkv', '.webm', '.avi', '.mov', '.mp3', '.wav', '.flac', '.m4a', '.aac', '.ogg'];
+const AUDIO_EXTS = ['.mp3', '.wav', '.flac', '.m4a', '.aac', '.ogg'];
 
 interface UseDragDropCallbacks {
-  onVideoSelected: (file: VideoFile) => void;
+  onVideoSelected: (file: MediaFile) => void;
   onSubtitlesProbed: (subs: EmbeddedSubtitle[]) => void;
   onError: (msg: string) => void;
   onLoadingChange: (loading: boolean) => void;
@@ -65,22 +66,24 @@ export function useDragDrop(callbacks: UseDragDropCallbacks) {
     }
 
     const ext = filePath.substring(filePath.lastIndexOf('.')).toLowerCase();
-    if (!VIDEO_EXTS.includes(ext)) {
+    if (!MEDIA_EXTS.includes(ext)) {
       cbRef.current.onError(`Unsupported file type: ${ext}`);
       return;
     }
 
-    const videoFile: VideoFile = {
+    const videoFile: MediaFile = {
       path: filePath,
       name: file.name,
       size: file.size,
     };
     cbRef.current.onVideoSelected(videoFile);
-    cbRef.current.onLoadingChange(true);
-    api.probeSubtitles(filePath)
-      .then((subs: EmbeddedSubtitle[]) => cbRef.current.onSubtitlesProbed(subs))
-      .catch(() => { })
-      .finally(() => cbRef.current.onLoadingChange(false));
+    if (!AUDIO_EXTS.includes(ext)) {
+      cbRef.current.onLoadingChange(true);
+      api.probeSubtitles(filePath)
+        .then((subs: EmbeddedSubtitle[]) => cbRef.current.onSubtitlesProbed(subs))
+        .catch(() => { })
+        .finally(() => cbRef.current.onLoadingChange(false));
+    }
   }, []);
 
   return {
