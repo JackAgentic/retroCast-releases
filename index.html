@@ -1,0 +1,245 @@
+<!doctype html>
+<html>
+
+<head>
+  <meta charset="UTF-8" />
+  <title>RetroCast</title>
+  <!-- Load font non-blocking so it doesn't prevent page paint -->
+  <link href="https://fonts.googleapis.com/css2?family=VT323&display=swap" rel="stylesheet" media="print" onload="this.media='all'">
+  <style>
+    body {
+      margin: 0;
+      background: #efefef;
+      font-family: 'VT323', 'Courier New', monospace;
+      overflow: hidden;
+      height: 100vh;
+    }
+
+    .boot-screen {
+      position: fixed;
+      inset: 0;
+      background: #fff;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      z-index: 99999;
+      image-rendering: pixelated;
+      transition: opacity 0.4s ease;
+    }
+
+    .boot-screen.fade-out {
+      opacity: 0;
+      pointer-events: none;
+    }
+
+    .boot-window {
+      border: 2px solid #000;
+      background: #fff;
+      box-shadow: 4px 4px 0px #000;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      min-width: 320px;
+    }
+
+    .boot-titlebar {
+      width: 100%;
+      background: #000;
+      color: #fff;
+      padding: 4px 10px;
+      font-size: 18px;
+      font-family: 'VT323', 'Courier New', monospace;
+      text-transform: uppercase;
+      letter-spacing: 2px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .boot-titlebar-btns {
+      display: flex;
+      gap: 4px;
+    }
+
+    .boot-titlebar-btns span {
+      width: 12px;
+      height: 12px;
+      border: 1px solid #fff;
+      display: block;
+    }
+
+    .boot-body {
+      padding: 30px 40px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 16px;
+    }
+
+    .boot-tv {
+      width: 100px;
+      height: 100px;
+      position: relative;
+    }
+
+    .boot-tv-antenna-l, .boot-tv-antenna-r {
+      position: absolute; width: 8px; height: 8px; background: #000; top: 0;
+    }
+    .boot-tv-antenna-l { left: 18px; }
+    .boot-tv-antenna-r { right: 18px; }
+
+    .boot-tv-antenna-l2, .boot-tv-antenna-r2 {
+      position: absolute; width: 8px; height: 8px; background: #000; top: 8px;
+    }
+    .boot-tv-antenna-l2 { left: 26px; }
+    .boot-tv-antenna-r2 { right: 26px; }
+
+    .boot-tv-body {
+      position: absolute; top: 16px; left: 4px; right: 4px; height: 58px; background: #000;
+    }
+
+    .boot-tv-screen {
+      position: absolute; top: 24px; left: 12px; right: 12px; height: 42px;
+      background: #fff; overflow: hidden;
+    }
+
+    .boot-tv-screen::after {
+      content: ''; position: absolute; inset: 0;
+      background: repeating-linear-gradient(0deg, transparent, transparent 2px, rgba(0,0,0,0.04) 2px, rgba(0,0,0,0.04) 4px);
+    }
+
+    .boot-play {
+      position: absolute; top: 32px; left: 50%; transform: translateX(-50%);
+      animation: boot-blink 1s step-end infinite;
+    }
+    .boot-play-row1, .boot-play-row2, .boot-play-row3 { display: flex; }
+    .boot-play .px { width: 5px; height: 5px; background: #000; }
+
+    .boot-tv-stand { position: absolute; bottom: 8px; left: 34px; width: 32px; height: 8px; background: #000; }
+    .boot-tv-base { position: absolute; bottom: 0; left: 20px; width: 60px; height: 8px; background: #000; }
+
+    .boot-title {
+      color: #000; font-size: 36px; font-family: 'VT323', 'Courier New', monospace;
+      letter-spacing: 4px; text-transform: uppercase;
+    }
+
+    .boot-text {
+      color: #000; font-size: 18px; font-family: 'VT323', 'Courier New', monospace;
+      opacity: 0.5;
+    }
+
+    .boot-progress-container {
+      width: 200px; height: 16px; border: 2px solid #000; background: #fff;
+      position: relative; overflow: hidden;
+    }
+
+    .boot-progress-bar {
+      height: 100%; background: #000; width: 0%;
+      animation: boot-load 2.5s steps(10) forwards;
+    }
+
+    .boot-progress-container::after {
+      content: ''; position: absolute; inset: 0;
+      background: repeating-linear-gradient(90deg, transparent, transparent 18px, #fff 18px, #fff 20px);
+    }
+
+    .boot-dots {
+      color: #000; font-family: 'VT323', 'Courier New', monospace; font-size: 18px;
+      min-width: 180px; text-align: left;
+    }
+
+    .boot-dots .line { opacity: 0; animation: boot-line-appear 0.3s forwards; }
+    .boot-dots .line:nth-child(1) { animation-delay: 0.2s; }
+    .boot-dots .line:nth-child(2) { animation-delay: 0.7s; }
+    .boot-dots .line:nth-child(3) { animation-delay: 1.2s; }
+    .boot-dots .line:nth-child(4) { animation-delay: 1.8s; }
+    .boot-dots .line:nth-child(5) { animation-delay: 2.3s; }
+
+    @keyframes boot-load { 0% { width: 0%; } 100% { width: 100%; } }
+    @keyframes boot-blink { 0%, 100% { opacity: 1; } 50% { opacity: 0; } }
+    @keyframes boot-line-appear { from { opacity: 0; } to { opacity: 0.5; } }
+
+    /* Error display area inside boot screen */
+    #boot-error {
+      color: #c00; font-family: 'Courier New', monospace; font-size: 14px;
+      margin-top: 16px; padding: 10px; border: 2px solid #000;
+      background: #fff; box-shadow: 2px 2px 0px #000;
+      max-width: 400px; word-break: break-word; white-space: pre-wrap;
+      display: none; max-height: 200px; overflow-y: auto;
+    }
+    #boot-error.visible { display: block; }
+  </style>
+</head>
+
+<body>
+  <div id="boot" class="boot-screen">
+    <div class="boot-window">
+      <div class="boot-titlebar">
+        <span>RetroCast</span>
+        <div class="boot-titlebar-btns">
+          <span></span>
+          <span></span>
+          <span></span>
+        </div>
+      </div>
+      <div class="boot-body">
+        <div class="boot-tv">
+          <div class="boot-tv-antenna-l"></div>
+          <div class="boot-tv-antenna-r"></div>
+          <div class="boot-tv-antenna-l2"></div>
+          <div class="boot-tv-antenna-r2"></div>
+          <div class="boot-tv-body"></div>
+          <div class="boot-tv-screen">
+            <div class="boot-play">
+              <div class="boot-play-row1"><div class="px"></div><div class="px"></div></div>
+              <div class="boot-play-row2"><div class="px"></div><div class="px"></div><div class="px"></div><div class="px"></div></div>
+              <div class="boot-play-row3"><div class="px"></div><div class="px"></div></div>
+            </div>
+          </div>
+          <div class="boot-tv-stand"></div>
+          <div class="boot-tv-base"></div>
+        </div>
+        <div class="boot-title">RetroCast</div>
+        <div class="boot-text">v1.0</div>
+        <div class="boot-progress-container">
+          <div class="boot-progress-bar"></div>
+        </div>
+        <div class="boot-dots">
+          <div class="line">> INIT DISPLAY.SYS</div>
+          <div class="line">> LOAD CAST.DRV</div>
+          <div class="line">> SCAN NETWORK...</div>
+          <div class="line">> MOUNT MEDIA.VOL</div>
+          <div class="line">> READY.</div>
+        </div>
+      </div>
+    </div>
+    <div id="boot-error"></div>
+  </div>
+  <div id="root"></div>
+
+  <!-- Catch-all error handler - runs BEFORE any module scripts -->
+  <script>
+    (function() {
+      var errors = [];
+      function showError(msg) {
+        errors.push(msg);
+        var el = document.getElementById('boot-error');
+        if (el) {
+          el.textContent = '> SYSTEM FAULT\n\n' + errors.join('\n');
+          el.classList.add('visible');
+        }
+      }
+      window.onerror = function(msg, src, line) {
+        showError(msg + (src ? ' (' + src.split('/').pop() + ':' + line + ')' : ''));
+      };
+      window.addEventListener('unhandledrejection', function(e) {
+        showError(e.reason ? (e.reason.message || String(e.reason)) : 'Unhandled promise rejection');
+      });
+    })();
+  </script>
+
+  <script type="module" src="/src/renderer.tsx"></script>
+</body>
+
+</html>
