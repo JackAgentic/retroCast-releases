@@ -375,9 +375,10 @@ function AppInner() {
   const handleSelectTab = useCallback((newTabId: string) => {
     if (newTabId === state.activeTabId) return;
 
-    // Pause local playback on the tab we're leaving
+    // Save position and pause local playback on the tab we're leaving
     const prevTab = state.tabs.find(t => t.id === state.activeTabId);
     if (prevTab?.state.isCasting && prevTab.state.selectedDeviceId === 'local' && videoRef.current) {
+      dispatchToTab(state.activeTabId, { type: 'SAVE_CURRENT_TIME', payload: videoRef.current.currentTime });
       videoRef.current.pause();
     }
 
@@ -527,6 +528,7 @@ function AppInner() {
               isLoading={tabState.isLoading}
               disableFakePreview={settings.disableFakePreview}
               isAudio={fileIsAudio}
+              savedCurrentTime={tabState.savedCurrentTime}
               videoRef={videoRef}
               videoContainerRef={videoContainerRef}
               subtitleTrackUrl={subtitleTrackUrl}

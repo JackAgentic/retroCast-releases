@@ -1,4 +1,4 @@
-import type { RefObject } from 'react';
+import { type RefObject, useCallback, useRef } from 'react';
 import { Cast, ArrowLeft, Music } from 'lucide-react';
 import type { ChromecastDevice, EmbeddedSubtitle, MediaFile, SubtitleFile, CastStatus, SubtitleOption } from '../../shared/types';
 import { BouncingNowPlaying } from './BouncingNowPlaying';
@@ -17,6 +17,7 @@ interface CastingViewProps {
   isLoading: boolean;
   disableFakePreview: boolean;
   isAudio: boolean;
+  savedCurrentTime: number;
   videoRef: RefObject<HTMLVideoElement | null>;
   videoContainerRef: RefObject<HTMLDivElement | null>;
   subtitleTrackUrl: string | null;
@@ -47,6 +48,7 @@ export function CastingView({
   isLoading,
   disableFakePreview,
   isAudio,
+  savedCurrentTime,
   videoRef,
   videoContainerRef,
   subtitleTrackUrl,
@@ -66,6 +68,20 @@ export function CastingView({
   onSubtitleOptionChange,
   onSettings,
 }: CastingViewProps) {
+  // Restore saved playback position when video loads after a tab switch
+  const restoredRef = useRef(false);
+  const handleLoadedMetadata = useCallback(() => {
+    if (savedCurrentTime > 0 && !restoredRef.current && videoRef.current) {
+      videoRef.current.currentTime = savedCurrentTime;
+      restoredRef.current = true;
+    }
+  }, [savedCurrentTime, videoRef]);
+
+  // Reset restored flag when savedCurrentTime changes (new tab switch)
+  if (savedCurrentTime === 0) {
+    restoredRef.current = false;
+  }
+
   if (disableFakePreview) {
     return (
       <div className="subtitle-section" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%' }}>
@@ -109,6 +125,7 @@ export function CastingView({
               ref={videoRef}
               src={`file://${encodeURI(videoFile.path.replace(/\\/g, '/'))}`}
               autoPlay
+              onLoadedMetadata={handleLoadedMetadata}
               style={isAudio ? { display: 'none' } : undefined}
             >
               {subtitleTrackUrl && (

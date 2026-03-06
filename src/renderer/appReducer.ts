@@ -14,6 +14,7 @@ export interface TabState {
   castStatus: CastStatus | null;
   volume: number;
   error: string | null;
+  savedCurrentTime: number;
 }
 
 export type TabAction =
@@ -27,7 +28,8 @@ export type TabAction =
   | { type: 'SET_LOADING'; payload: boolean }
   | { type: 'SET_CAST_STATUS'; payload: CastStatus | null }
   | { type: 'SET_VOLUME'; payload: number }
-  | { type: 'SET_ERROR'; payload: string | null };
+  | { type: 'SET_ERROR'; payload: string | null }
+  | { type: 'SAVE_CURRENT_TIME'; payload: number };
 
 export function tabReducer(state: TabState, action: TabAction): TabState {
   switch (action.type) {
@@ -58,6 +60,8 @@ export function tabReducer(state: TabState, action: TabAction): TabState {
       return { ...state, volume: action.payload };
     case 'SET_ERROR':
       return { ...state, error: action.payload };
+    case 'SAVE_CURRENT_TIME':
+      return { ...state, savedCurrentTime: action.payload };
     default:
       return state;
   }
@@ -75,6 +79,7 @@ export const tabInitialState: TabState = {
   castStatus: null,
   volume: 1,
   error: null,
+  savedCurrentTime: 0,
 };
 
 // --- Top-level tabs state ---
