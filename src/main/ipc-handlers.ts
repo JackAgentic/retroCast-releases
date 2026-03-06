@@ -15,7 +15,7 @@ import { SettingsManager } from './settings-manager';
 
 let mediaServer: MediaServer;
 let discovery: DeviceDiscovery;
-let caster: Caster | null = null;
+const casters = new Map<string, Caster>();
 let devices: ChromecastDevice[] = [];
 let settingsManager: SettingsManager;
 
@@ -106,10 +106,11 @@ export function registerIpcHandlers() {
     const localIP = getLocalIP(settings.localAddressLock);
     const port = mediaServer.getPort();
     const baseUrl = `http://${localIP}:${port}`;
+    const { tabId } = request;
 
-    // Set video on media server
-    mediaServer.setVideo(request.videoPath);
-    mediaServer.clearSubtitles();
+    // Set video on media server for this tab
+    mediaServer.setVideo(tabId, request.videoPath);
+    mediaServer.clearSubtitles(tabId);
 
     // Process subtitles
     const tracks: any[] = [];
@@ -127,11 +128,11 @@ export function registerIpcHandlers() {
         fs.writeFileSync(vttPath, vttContent, 'utf-8');
       }
 
-      mediaServer.setSubtitle(1, vttPath);
+      mediaServer.setSubtitle(tabId, 1, vttPath);
       tracks.push({
         trackId: 1,
         type: 'TEXT',
-        trackContentId: `${baseUrl}/subtitles/1?t=${Date.now()}`,
+        trackContentId: `${baseUrl}/sessions/${tabId}/subtitles/1?t=${Date.now()}`,
         trackContentType: 'text/vtt',
         name: 'Subtitles',
         language: 'en',
@@ -144,26 +145,28 @@ export function registerIpcHandlers() {
     const device = devices.find((d) => d.id === request.deviceId);
     if (!device) throw new Error('Device not found');
 
-    // Disconnect existing caster
-    if (caster) {
-      caster.disconnect();
-      caster = null;
+    // Disconnect existing caster for this tab
+    const existingCaster = casters.get(tabId);
+    if (existingCaster) {
+      existingCaster.disconnect();
+      casters.delete(tabId);
     }
 
-    // Create new caster
-    caster = new Caster(
+    // Create new caster for this tab
+    const caster = new Caster(
       (status) => {
         if (win && !win.isDestroyed()) {
-          win.webContents.send(IPC.CAST_STATUS, status);
+          win.webContents.send(IPC.CAST_STATUS, { tabId, status });
         }
       },
       (error) => {
         if (win && !win.isDestroyed()) {
-          win.webContents.send(IPC.CAST_ERROR, error);
+          win.webContents.send(IPC.CAST_ERROR, { tabId, error });
         }
       },
     );
 
+    casters.set(tabId, caster);
     await caster.connect(device.host, device.port);
 
     const ext = path.extname(request.videoPath).toLowerCase();
@@ -192,7 +195,7 @@ export function registerIpcHandlers() {
     };
 
     await caster.load({
-      contentUrl: `${baseUrl}/video`,
+      contentUrl: `${baseUrl}/sessions/${tabId}/video`,
       contentType: contentTypes[ext] || 'application/octet-stream',
       tracks: tracks.length > 0 ? tracks : undefined,
       activeTrackIds: activeTrackIds.length > 0 ? activeTrackIds : undefined,
@@ -208,32 +211,38 @@ export function registerIpcHandlers() {
     }
   });
 
-  ipcMain.handle(IPC.PLAY, async () => {
+  ipcMain.handle(IPC.PLAY, async (_event, tabId: string) => {
+    const caster = casters.get(tabId);
     if (caster) await caster.play();
   });
 
-  ipcMain.handle(IPC.PAUSE, async () => {
+  ipcMain.handle(IPC.PAUSE, async (_event, tabId: string) => {
+    const caster = casters.get(tabId);
     if (caster) await caster.pause();
   });
 
-  ipcMain.handle(IPC.SEEK, async (_event, time: number) => {
+  ipcMain.handle(IPC.SEEK, async (_event, tabId: string, time: number) => {
+    const caster = casters.get(tabId);
     if (caster) await caster.seek(time);
   });
 
-  ipcMain.handle(IPC.STOP, async () => {
+  ipcMain.handle(IPC.STOP, async (_event, tabId: string) => {
+    const caster = casters.get(tabId);
     if (caster) {
       await caster.stop();
       caster.disconnect();
-      caster = null;
+      casters.delete(tabId);
     }
   });
 
-  ipcMain.handle(IPC.SET_VOLUME, async (_event, level: number) => {
+  ipcMain.handle(IPC.SET_VOLUME, async (_event, tabId: string, level: number) => {
+    const caster = casters.get(tabId);
     if (caster) await caster.setVolume(level);
     if (settingsManager) settingsManager.updateVolume(level);
   });
 
-  ipcMain.handle(IPC.SET_SUBTITLE_TRACK, async (_event, trackId: number | null) => {
+  ipcMain.handle(IPC.SET_SUBTITLE_TRACK, async (_event, tabId: string, trackId: number | null) => {
+    const caster = casters.get(tabId);
     if (caster) await caster.setSubtitleTrack(trackId);
   });
 
@@ -291,8 +300,8 @@ export function registerIpcHandlers() {
     return result.filePaths[0];
   });
 
-  ipcMain.handle(IPC.PREPARE_SUBTITLES, async (_event, videoPath: string, subtitleOption: SubtitleOption) => {
-    mediaServer.clearSubtitles();
+  ipcMain.handle(IPC.PREPARE_SUBTITLES, async (_event, tabId: string, videoPath: string, subtitleOption: SubtitleOption) => {
+    mediaServer.clearSubtitles(tabId);
     if (subtitleOption.type === 'none') return null;
 
     const tempDir = path.join(os.tmpdir(), 'videocast-subs');
@@ -306,14 +315,25 @@ export function registerIpcHandlers() {
       fs.writeFileSync(vttPath, vttContent, 'utf-8');
     }
 
-    mediaServer.setSubtitle(1, vttPath);
+    mediaServer.setSubtitle(tabId, 1, vttPath);
     const port = mediaServer.getPort();
-    return `http://localhost:${port}/subtitles/1?t=${Date.now()}`;
+    return `http://localhost:${port}/sessions/${tabId}/subtitles/1?t=${Date.now()}`;
   });
 
-  ipcMain.handle(IPC.UPDATE_TEXT_TRACK_STYLE, async (_event, style: { foregroundColor?: string; backgroundColor?: string; fontScale?: number }) => {
+  ipcMain.handle(IPC.UPDATE_TEXT_TRACK_STYLE, async (_event, tabId: string, style: { foregroundColor?: string; backgroundColor?: string; fontScale?: number }) => {
+    const caster = casters.get(tabId);
     if (!caster) return;
     await caster.updateTextTrackStyle(style);
+  });
+
+  ipcMain.handle(IPC.CLOSE_TAB_SESSION, async (_event, tabId: string) => {
+    const caster = casters.get(tabId);
+    if (caster) {
+      try { await caster.stop(); } catch { /* ignore */ }
+      caster.disconnect();
+      casters.delete(tabId);
+    }
+    mediaServer.clearSession(tabId);
   });
 
   ipcMain.handle(IPC.SET_DEFAULT_PLAYER, async () => {
@@ -380,11 +400,18 @@ if (failed.length === 0) { "OK"; } else { "FAILED:" + failed.join(","); }
   });
 }
 
+export async function stopAllCasters() {
+  const stops = Array.from(casters.values()).map(c =>
+    c.stop().catch(() => { /* best-effort */ })
+  );
+  await Promise.allSettled(stops);
+}
+
 export function cleanupServices() {
-  if (caster) {
+  for (const [, caster] of casters) {
     caster.disconnect();
-    caster = null;
   }
+  casters.clear();
   if (discovery) discovery.stop();
   if (mediaServer) mediaServer.stop();
 }

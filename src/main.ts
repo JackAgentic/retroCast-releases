@@ -1,7 +1,7 @@
 import { app, BrowserWindow, dialog } from 'electron';
 import path from 'node:path';
 import started from 'electron-squirrel-startup';
-import { initializeServices, registerIpcHandlers, cleanupServices } from './main/ipc-handlers';
+import { initializeServices, registerIpcHandlers, cleanupServices, stopAllCasters } from './main/ipc-handlers';
 import { IPC } from './shared/types';
 
 if (started) app.quit();
@@ -98,7 +98,15 @@ if (!gotLock) {
     }
   });
 
-  app.on('before-quit', () => {
-    cleanupServices();
+  let isQuitting = false;
+  app.on('before-quit', (event) => {
+    if (isQuitting) return;
+    isQuitting = true;
+    // Stop all Chromecast sessions before quitting (async, so we defer quit)
+    event.preventDefault();
+    stopAllCasters().finally(() => {
+      cleanupServices();
+      app.exit(0);
+    });
   });
 }

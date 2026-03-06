@@ -20,8 +20,8 @@ const MIME_TYPES: Record<string, string> = {
 export class MediaServer {
   private app: express.Application;
   private server: Server | null = null;
-  private videoPath: string | null = null;
-  private subtitleFiles: Map<number, string> = new Map();
+  private videoPaths: Map<string, string> = new Map();
+  private subtitleFiles: Map<string, Map<number, string>> = new Map();
   private port = 0;
   private requestedPort: number;
 
@@ -46,15 +46,16 @@ export class MediaServer {
   }
 
   private setupRoutes() {
-    this.app.get('/video', (req, res) => {
-      if (!this.videoPath || !fs.existsSync(this.videoPath)) {
+    this.app.get('/sessions/:tabId/video', (req, res) => {
+      const videoPath = this.videoPaths.get(req.params.tabId);
+      if (!videoPath || !fs.existsSync(videoPath)) {
         res.status(404).send('No video loaded');
         return;
       }
 
-      const stat = fs.statSync(this.videoPath);
+      const stat = fs.statSync(videoPath);
       const fileSize = stat.size;
-      const ext = path.extname(this.videoPath).toLowerCase();
+      const ext = path.extname(videoPath).toLowerCase();
       const contentType = MIME_TYPES[ext] || 'application/octet-stream';
 
       const range = req.headers.range;
@@ -64,7 +65,7 @@ export class MediaServer {
         const end = parts[1] ? parseInt(parts[1], 10) : fileSize - 1;
         const chunkSize = end - start + 1;
 
-        const stream = fs.createReadStream(this.videoPath, { start, end });
+        const stream = fs.createReadStream(videoPath, { start, end });
         res.writeHead(206, {
           'Content-Range': `bytes ${start}-${end}/${fileSize}`,
           'Accept-Ranges': 'bytes',
@@ -78,13 +79,14 @@ export class MediaServer {
           'Content-Type': contentType,
           'Accept-Ranges': 'bytes',
         });
-        fs.createReadStream(this.videoPath).pipe(res);
+        fs.createReadStream(videoPath).pipe(res);
       }
     });
 
-    this.app.get('/subtitles/:trackId', (req, res) => {
+    this.app.get('/sessions/:tabId/subtitles/:trackId', (req, res) => {
+      const tabSubs = this.subtitleFiles.get(req.params.tabId);
       const trackId = parseInt(req.params.trackId, 10);
-      const vttPath = this.subtitleFiles.get(trackId);
+      const vttPath = tabSubs?.get(trackId);
       if (!vttPath || !fs.existsSync(vttPath)) {
         res.status(404).send('Subtitle track not found');
         return;
@@ -97,16 +99,24 @@ export class MediaServer {
     });
   }
 
-  setVideo(videoPath: string) {
-    this.videoPath = videoPath;
+  setVideo(tabId: string, videoPath: string) {
+    this.videoPaths.set(tabId, videoPath);
   }
 
-  setSubtitle(trackId: number, vttPath: string) {
-    this.subtitleFiles.set(trackId, vttPath);
+  setSubtitle(tabId: string, trackId: number, vttPath: string) {
+    if (!this.subtitleFiles.has(tabId)) {
+      this.subtitleFiles.set(tabId, new Map());
+    }
+    this.subtitleFiles.get(tabId)!.set(trackId, vttPath);
   }
 
-  clearSubtitles() {
-    this.subtitleFiles.clear();
+  clearSubtitles(tabId: string) {
+    this.subtitleFiles.delete(tabId);
+  }
+
+  clearSession(tabId: string) {
+    this.videoPaths.delete(tabId);
+    this.subtitleFiles.delete(tabId);
   }
 
   getPort(): number {

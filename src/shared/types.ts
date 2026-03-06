@@ -26,6 +26,7 @@ export const IPC = {
   UPDATE_TEXT_TRACK_STYLE: 'update-text-track-style',
   OPEN_FILE: 'open-file',
   SET_DEFAULT_PLAYER: 'set-default-player',
+  CLOSE_TAB_SESSION: 'close-tab-session',
 } as const;
 
 export interface ChromecastDevice {
@@ -59,6 +60,7 @@ export type SubtitleOption =
   | { type: 'external'; path: string };
 
 export interface CastRequest {
+  tabId: string;
   videoPath: string;
   subtitleOption: SubtitleOption;
   deviceId: string;
@@ -134,12 +136,12 @@ export interface VideoCastAPI {
   probeSubtitles: (videoPath: string) => Promise<EmbeddedSubtitle[]>;
   getDevices: () => Promise<ChromecastDevice[]>;
   castMedia: (request: CastRequest) => Promise<void>;
-  play: () => Promise<void>;
-  pause: () => Promise<void>;
-  seek: (time: number) => Promise<void>;
-  stop: () => Promise<void>;
-  setVolume: (level: number) => Promise<void>;
-  setSubtitleTrack: (trackId: number | null) => Promise<void>;
+  play: (tabId: string) => Promise<void>;
+  pause: (tabId: string) => Promise<void>;
+  seek: (tabId: string, time: number) => Promise<void>;
+  stop: (tabId: string) => Promise<void>;
+  setVolume: (tabId: string, level: number) => Promise<void>;
+  setSubtitleTrack: (tabId: string, trackId: number | null) => Promise<void>;
   getSettings: () => Promise<AppSettings>;
   saveSettings: (settings: AppSettings) => Promise<void>;
   getNetworkInterfaces: () => Promise<NetworkInterface[]>;
@@ -147,11 +149,12 @@ export interface VideoCastAPI {
   selectFileDirect: (filePath: string) => Promise<MediaFile>;
   onOpenFile: (callback: (filePath: string) => void) => () => void;
   getHomePath: () => Promise<string>;
-  prepareSubtitles: (videoPath: string, subtitleOption: SubtitleOption) => Promise<string | null>;
+  prepareSubtitles: (tabId: string, videoPath: string, subtitleOption: SubtitleOption) => Promise<string | null>;
   openFolder: (defaultPath?: string) => Promise<string | null>;
-  updateTextTrackStyle: (style: { foregroundColor?: string; backgroundColor?: string; fontScale?: number; fontFamily?: string }) => Promise<void>;
+  updateTextTrackStyle: (tabId: string, style: { foregroundColor?: string; backgroundColor?: string; fontScale?: number; fontFamily?: string }) => Promise<void>;
   setAsDefaultPlayer: () => Promise<{ success: boolean; error?: string }>;
+  closeTabSession: (tabId: string) => Promise<void>;
   onDevicesUpdated: (callback: (devices: ChromecastDevice[]) => void) => () => void;
-  onCastStatus: (callback: (status: CastStatus) => void) => () => void;
-  onCastError: (callback: (error: string) => void) => () => void;
+  onCastStatus: (callback: (data: { tabId: string; status: CastStatus }) => void) => () => void;
+  onCastError: (callback: (data: { tabId: string; error: string }) => void) => () => void;
 }
